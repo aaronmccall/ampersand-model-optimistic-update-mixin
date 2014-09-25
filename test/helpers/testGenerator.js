@@ -10,7 +10,7 @@ module.exports = function (BaseModel, config) {
     config = config || {};
     function getModel(_config) {
         return mixin(BaseModel, {
-            _optimisticPatch: _.extend({
+            _optimisticUpdate: _.extend({
                 debug: config.debug
             }, _config)
         });

@@ -10,7 +10,7 @@ var mixin = module.exports = function (_super, protoProps) {
     var baseProto = protoProps || {};
     var config = internals.config = _.extend({
         autoWrap: true
-    }, baseProto._optimisticPatch);
+    }, baseProto._optimisticUpdate);
 
     var log = internals.log = function () {
         if (config.debug) {
@@ -41,7 +41,7 @@ var mixin = module.exports = function (_super, protoProps) {
             return this._ops || this._getDiff(this._getOriginal(), this.toJSON());
         },
         _conflictDetector: function (version, serverData) {
-            var config = this._optimisticPatch;
+            var config = this._optimisticUpdate;
             log('Preparing conflict data%s', config.autoResolve ? ' and resolving non-conflicting changes.' : '.');
             serverData = this.parse(serverData);
             var changed = this._getDiff(this._getOriginal(), serverData);
@@ -96,14 +96,14 @@ var mixin = module.exports = function (_super, protoProps) {
             }
             if (conflicts.length) {
                 // Deal with them
-                this._conflict = { conflicts: conflicts, serverState: serverData, resolved: this._optimisticPatch.autoResolve ? changed : [] };
+                this._conflict = { conflicts: conflicts, serverState: serverData, resolved: this._optimisticUpdate.autoResolve ? changed : [] };
                 log('emitting sync:conflict event: %j', this._conflict);
                 return this.trigger('sync:conflict', this, this._conflict);
             }
         },
         _applyDiff: function (diff) {
             log('applying diff:', diff);
-            var config = this._optimisticPatch;
+            var config = this._optimisticUpdate;
             var models = this[config.modelProperty];
             var collections = this[config.collectionProperty];
             _.each(diff, function (op) {
