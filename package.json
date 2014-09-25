@@ -1,0 +1,44 @@
+{
+  "name": "ampersand-model-optimistic-patch-mixin",
+  "version": "0.0.0",
+  "description": "A mixin combining smart defaults for efficient data updating (json+patch) and optimistic concurrency.",
+  "main": "index.js",
+  "scripts": {
+    "test": "lab -v",
+    "test-cov": "lab -r html -o coverage.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aaronmccall/ampersand-model-optimistic-patch-mixin.git"
+  },
+  "keywords": [
+    "optimistic",
+    "concurrency",
+    "rfc6902",
+    "json+patch",
+    "json-patch",
+    "ampersand",
+    "backbone",
+    "rest",
+    "patch"
+  ],
+  "author": "Aaron McCall <aaron@andyet.net>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/aaronmccall/ampersand-model-optimistic-patch-mixin/issues"
+  },
+  "homepage": "https://github.com/aaronmccall/ampersand-model-optimistic-patch-mixin",
+  "dependencies": {
+    "ampersand-model-patch-mixin": "~1.1.0",
+    "ampersand-optimistic-sync": "~1.0.0",
+    "jsonpointer": "~1.1.0",
+    "rfc6902-simple-diff": "^1.1.1",
+    "underscore": "~1.6.0"
+  },
+  "devDependencies": {
+    "backbone": "~1.1.2",
+    "ampersand-model": "~4.0.2",
+    "ampersand-collection": "~1.3.16",
+    "ampersand-collection-underscore-mixin": "~1.0.2"
+  }
+}

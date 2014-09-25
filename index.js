@@ -1,0 +1,165 @@
+var _ = require('underscore');
+var JSONDiff = require('rfc6902-simple-diff');
+var JSONPointer = require('jsonpointer');
+var syncMixin = require('ampersand-optimistic-sync');
+var patcherMixin = require('ampersand-model-patch-mixin');
+
+var internals = {};
+
+var mixin = module.exports = function (_super, protoProps) {
+    var baseProto = protoProps || {};
+    var config = internals.config = _.extend({
+        autoWrap: true
+    }, baseProto._optimisticPatch);
+
+    var log = internals.log = function () {
+        if (config.debug) {
+            console.log.apply(console, arguments);
+        }
+    };
+
+    var myProto = _.extend({
+        _invalidHandler: function (model, version, serverData) {
+            log('invalidHandler called:', version, serverData);
+            if (_.isObject(serverData)) {
+                return model._conflictDetector(version, serverData);
+            }
+            var xhr = model.sync('read', model, {
+                success: function (data) {
+                    var serverData = model.parse(data);
+                    model._conflictDetector(model._version, serverData);
+                }
+            });
+        },
+        _getDiff: function (lhs, rhs) {
+            return JSONDiff(lhs, rhs);
+        },
+        _getOriginal: function () {
+            return this[this._patcherConfig.originalProperty];
+        },
+        _getLocalOps: function () {
+            return this._ops || this._getDiff(this._getOriginal(), this.toJSON());
+        },
+        _conflictDetector: function (version, serverData) {
+            var config = this._optimisticPatch;
+            log('Preparing conflict data%s', config.autoResolve ? ' and resolving non-conflicting changes.' : '.');
+            serverData = this.parse(serverData);
+            var changed = this._getDiff(this._getOriginal(), serverData);
+            var conflicts = [];
+            var employeeCache = {};
+            var removeClient = [];
+            var removeServer = [];
+            if (this._version !== version) this._version = version;
+
+            _.each(changed, function (op, idx) {
+                log('%d: op:', idx, op);
+                var collision = _.findWhere(this._getLocalOps(), {op: op.op, path: op.path});
+                if (collision) {
+                    log('found a collision between %j and %j', op, collision);
+                    // Remove from possible auto-resolvable changes, regardless
+                    removeServer.push(op);
+
+                    var bothRemoved = (op.op === 'remove' && collision.op === 'remove');
+                    var sameChange = (op.op === 'replace' && op.value === collision.value);
+                    // If client and server both removed something or changed it to the same value,
+                    // drop both operations --> no conflict
+                    if (bothRemoved || sameChange) {
+                        return removeClient.push(collision);
+                    }
+                } else {
+                    log('no conflict');
+                    if (config.autoResolve) return;
+                }
+                // If we've made it this far, there is a valid conflict
+
+                var payload = {
+                    client: collision,
+                    server: op,
+                    original: op.op === 'add' ? null : JSONPointer.get(this._getOriginal(), op.path)
+                };
+                log('adding conflict:', payload);
+                return conflicts.push(payload);
+            }, this);
+            
+            if (removeClient.length && this._ops) {
+                log('cleaning up _ops');
+                this._ops = _.difference(this._ops, removeClient);
+            }
+            if (removeServer.length) {
+                log('cleaning up server changes');
+                changed = _.difference(changed, removeServer);
+            }
+            if (config.autoResolve && changed.length) {
+                log('auto-resolving');
+                this._applyDiff(changed);
+                if (!conflicts.length) this.trigger('sync:conflict-autoResolved', this, changed);
+            }
+            if (conflicts.length) {
+                // Deal with them
+                this._conflict = { conflicts: conflicts, serverState: serverData, resolved: this._optimisticPatch.autoResolve ? changed : [] };
+                log('emitting sync:conflict event: %j', this._conflict);
+                return this.trigger('sync:conflict', this, this._conflict);
+            }
+        },
+        _applyDiff: function (diff) {
+            log('applying diff:', diff);
+            var config = this._optimisticPatch;
+            var models = this[config.modelProperty];
+            var collections = this[config.collectionProperty];
+            _.each(diff, function (op) {
+                var pathParts = op.path.slice(1).split('/');
+                var root = pathParts.shift();
+                var original, child;
+                if (this._isCollection(root)) {
+                    if (op.op === 'add') {
+                        log('adding %o to %s', op.value, root);
+                        return this[root].add(op.value);
+                    }
+                    original = this._original[root][pathParts.shift()];
+                    child = original && this[root].get(original.id);
+                    if (child && op.op === 'remove') {
+                        log('removing %o from %s', child, root);
+                        return this[root].remove(child);
+                    }
+                } else if (this._isModel(root)) {
+                    child = this[root];
+                }
+                if (child && op.op === 'replace') {
+                    // We're replacing a single prop on the child
+                    if (pathParts.length) {
+                        log('setting %o property %s to %s', child, pathParts[0], op.value);
+                        child.set(pathParts.shift(), op.value);
+                    // We're replacing all the attributes of the child
+                    } else if (_.isObject(op.value)) {
+                        log('setting %o attributes to %o', child, op.value);
+                        child.set(op.value);
+                    }
+                }
+                if (child && op.op === 'remove') {
+                    log('removing %o', child);
+                    child.destroy();
+                }
+            }, this);
+        },
+        _isCollection: function (name) {
+            var collections = this[this._patcherConfig.collectionProperty];
+            return collections && name in collections;
+        },
+        _isModel: function (name) {
+            var models = this[this._patcherConfig.modelProperty];
+            return models && name in models;
+        }
+    });
+    
+
+    var patchProto =  patcherMixin(_super, {
+        _patcherConfig: config.patcher || {}
+    });
+
+    if (config.patcher === false) patchProto = _.pick(patchProto, 'parse', '_patcherConfig');
+
+    var syncProto = syncMixin(_super, _.defaults({
+        invalidHandler: myProto._invalidHandler
+    }, config.optimistic || {}));
+    return _super.extend(_.extend(baseProto, syncProto, patchProto, myProto));
+};
