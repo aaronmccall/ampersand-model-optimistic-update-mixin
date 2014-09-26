@@ -180,7 +180,7 @@ var mixin = module.exports = function (_super, protoProps) {
     });
 
     if (config.JSONPatch === false) {
-        patchProto = _.pick(patchProto, 'parse', '_patcherConfig');
+        patchProto = _.pick(patchProto, 'parse', '_patcherConfig', 'toJSON');
     }
 
     var syncProto = syncMixin(_super, _.defaults({
