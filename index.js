@@ -119,14 +119,25 @@ var mixin = module.exports = function (_super, protoProps) {
                         log('adding %o to %s', op.value, root);
                         return this[root].add(op.value);
                     }
-                    original = this._original[root][pathParts.shift()];
-                    child = original && this[root].get(original.id);
+                    var index = pathParts.shift();
+                    original = this._original[root][index];
+                    if (original) {
+                        child = this[root].get(original.id);
+                    } else {
+                        child = this[root].at(index);
+                    }
                     if (child && op.op === 'remove') {
                         log('removing %o from %s', child, root);
                         return this[root].remove(child);
                     }
                 } else if (this._isModel(root)) {
                     child = this[root];
+                } else if (!pathParts.length) {
+                    if (op.op === 'add' || op.op === 'replace') {
+                        this.set(root, op.value);
+                    } else if (op.op === 'remove') {
+                        this.unset(root);
+                    }
                 }
                 if (child && op.op === 'replace') {
                     // We're replacing a single prop on the child
@@ -142,6 +153,7 @@ var mixin = module.exports = function (_super, protoProps) {
                 if (child && op.op === 'remove') {
                     log('removing %o', child);
                     child.destroy();
+                    delete this[root];
                 }
             }, this);
         },
@@ -154,7 +166,6 @@ var mixin = module.exports = function (_super, protoProps) {
             return models && name in models;
         }
     });
-    
 
     var patchProto =  patcherMixin(_super, {
         _patcherConfig: config.patcher || {}
