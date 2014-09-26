@@ -1,4 +1,5 @@
 var _ = require('underscore');
+var kisslog = require('kisslog');
 var JSONDiff = require('rfc6902-simple-diff');
 var JSONPointer = require('jsonpointer');
 var syncMixin = require('ampersand-optimistic-sync');
@@ -12,15 +13,7 @@ var mixin = module.exports = function (_super, protoProps) {
 
     protoProps = _.omit(baseProto, '_optimisticUpdate');
     
-    function log() {
-        var args = [].slice.call(arguments);
-        if (config.debug) {
-            console.log.apply(console, (typeof window === 'undefined') ? args.map(function (arg) {
-                if (typeof arg === 'string') return arg.replace('%o', '%j');
-                return arg;
-            }) : args);
-        }
-    }
+    var log = kisslog(config);
 
     var myProto = _.extend({
         _optimisticUpdate: config,
