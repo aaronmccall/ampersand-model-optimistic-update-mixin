@@ -8,17 +8,18 @@ var internals = {};
 
 var mixin = module.exports = function (_super, protoProps) {
     var baseProto = protoProps || {};
-    var config = internals.config = _.extend({
-        autoWrap: true
-    }, baseProto._optimisticUpdate);
+    var config = baseProto._optimisticUpdate || {};
 
-    var log = internals.log = function () {
+    protoProps = _.omit(baseProto, '_optimisticUpdate');
+    
+    function log() {
         if (config.debug) {
             console.log.apply(console, arguments);
         }
-    };
+    }
 
     var myProto = _.extend({
+        _optimisticUpdate: config,
         _invalidHandler: function (model, version, serverData) {
             log('invalidHandler called:', version, serverData);
             if (_.isObject(serverData)) {
