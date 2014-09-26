@@ -157,7 +157,9 @@ var mixin = module.exports = function (_super, protoProps) {
         _patcherConfig: config.patcher || {}
     });
 
-    if (config.patcher === false) patchProto = _.pick(patchProto, 'parse', '_patcherConfig');
+    if (config.JSONPatch === false) {
+        patchProto = _.pick(patchProto, 'parse', '_patcherConfig');
+    }
 
     var syncProto = syncMixin(_super, _.defaults({
         invalidHandler: myProto._invalidHandler
