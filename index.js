@@ -13,8 +13,12 @@ var mixin = module.exports = function (_super, protoProps) {
     protoProps = _.omit(baseProto, '_optimisticUpdate');
     
     function log() {
+        var args = [].slice.call(arguments);
         if (config.debug) {
-            console.log.apply(console, arguments);
+            console.log.apply(console, (typeof window === 'undefined') ? args.map(function (arg) {
+                if (typeof arg === 'string') return arg.replace('%o', '%j');
+                return arg;
+            }) : args);
         }
     }
 
@@ -56,7 +60,7 @@ var mixin = module.exports = function (_super, protoProps) {
                 log('%d: op:', idx, op);
                 var collision = _.findWhere(this._getLocalOps(), {op: op.op, path: op.path});
                 if (collision) {
-                    log('found a collision between %j and %j', op, collision);
+                    log('found a collision between %o and %o', op, collision);
                     // Remove from possible auto-resolvable changes, regardless
                     removeServer.push(op);
 
@@ -105,7 +109,7 @@ var mixin = module.exports = function (_super, protoProps) {
                     serverState: serverData,
                     resolved: this._optimisticUpdate.autoResolve ? changed : []
                 };
-                log('emitting sync:conflict event: %j', this._conflict);
+                log('emitting sync:conflict event: %o', this._conflict);
                 return this.trigger('sync:conflict', this, this._conflict);
             }
         },
