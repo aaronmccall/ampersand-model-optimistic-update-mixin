@@ -100,7 +100,11 @@ var mixin = module.exports = function (_super, protoProps) {
             }
             if (conflicts.length) {
                 // Deal with them
-                this._conflict = { conflicts: conflicts, serverState: serverData, resolved: this._optimisticUpdate.autoResolve ? changed : [] };
+                this._conflict = {
+                    conflicts: conflicts,
+                    serverState: serverData,
+                    resolved: this._optimisticUpdate.autoResolve ? changed : []
+                };
                 log('emitting sync:conflict event: %j', this._conflict);
                 return this.trigger('sync:conflict', this, this._conflict);
             }
@@ -178,5 +182,6 @@ var mixin = module.exports = function (_super, protoProps) {
     var syncProto = syncMixin(_super, _.defaults({
         invalidHandler: myProto._invalidHandler
     }, config.optimistic || {}));
+
     return _super.extend(_.extend(baseProto, syncProto, patchProto, myProto));
 };
