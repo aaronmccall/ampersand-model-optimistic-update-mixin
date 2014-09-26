@@ -29,8 +29,8 @@
   },
   "homepage": "https://github.com/aaronmccall/ampersand-model-optimistic-update-mixin",
   "dependencies": {
-    "ampersand-model-patch-mixin": "~1.1.0",
-    "ampersand-optimistic-sync": "~1.0.0",
+    "ampersand-model-patch-mixin": "^1.2.1",
+    "ampersand-optimistic-sync": "^1.1.1",
     "jsonpointer": "~1.1.0",
     "kisslog": "^1.0.0",
     "rfc6902-simple-diff": "^1.1.1",
