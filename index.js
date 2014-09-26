@@ -71,8 +71,8 @@ var mixin = module.exports = function (_super, protoProps) {
                     log('no conflict');
                     if (config.autoResolve) return;
                 }
-                // If we've made it this far, there is a valid conflict
 
+                // If we've made it this far, there is a valid conflict
                 var payload = {
                     client: collision,
                     server: op,
@@ -93,7 +93,10 @@ var mixin = module.exports = function (_super, protoProps) {
             if (config.autoResolve && changed.length) {
                 log('auto-resolving');
                 this._applyDiff(changed);
-                if (!conflicts.length) this.trigger('sync:conflict-autoResolved', this, changed);
+                if (!conflicts.length) {
+                    this.trigger('sync:conflict-autoResolved', this, changed);
+                    this[this._patcherConfig.originalProperty] = serverData;
+                }
             }
             if (conflicts.length) {
                 // Deal with them
