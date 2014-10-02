@@ -47,6 +47,7 @@ var mixin = module.exports = function (_super, protoProps) {
                     }
                 });
             }
+            return current;
         },
         _getLocalOps: function (original, current) {
             if (this._ops) return this._ops;
