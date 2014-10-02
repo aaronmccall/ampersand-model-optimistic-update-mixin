@@ -5,6 +5,7 @@ var sinon = require('sinon');
 var mixin = require('../../');
 var testData = require('./testData');
 var expect = Lab.expect;
+var JSONPointer = require('JSONPointer');
 
 module.exports = function (BaseModel, config) {
     config = config || {};
@@ -96,7 +97,7 @@ module.exports = function (BaseModel, config) {
         it('emits a sync:conflict event if there are any unresolved changes', function (done) {
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved');
+                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved', 'unsaved');
                 done();
             });
             serverData.shoes[0].style = 'Buff Suede';
@@ -111,12 +112,18 @@ module.exports = function (BaseModel, config) {
             expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved');
+                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved', 'unsaved');
                 expect(conflict.conflicts).to.be.an('array').with.length(1);
                 expect(_.findWhere(conflict.conflicts, {op: 'remove'})).to.not.exist;
                 done();
             });
             instance._conflictDetector('foo-bar-baz', serverData);
+        });
+
+        it('catches JSONPointer errors', function (done) {
+            expect(function () { instance._getByPath('/foo', instance._getOriginal()); }).to.not.throw();
+            expect(function () { JSONPointer.get(instance._getOriginal(), '/foo'); }).to.throw(/not found/);
+            done();
         });
 
         it('discards changes to same value', function (done) {
@@ -127,7 +134,7 @@ module.exports = function (BaseModel, config) {
             expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved');
+                expect(conflict).to.be.an('object').and.have.keys('conflicts', 'serverState', 'resolved', 'unsaved');
                 expect(conflict.conflicts).to.be.an('array').with.length(1);
                 expect(conflict.conflicts[0].server.op).to.not.equal('replace');
                 done();
@@ -320,10 +327,10 @@ module.exports = function (BaseModel, config) {
                 expect(serverDiff).to.be.an('array').with.length(2);
                 expect(clientDiff).to.be.an('array').with.length(1);
                 instance.on('sync:conflict', function (model, conflict) {
-                    expect(conflict.resolved).to.be.an('array').with.length(1).and.include(
-                        {op: 'add', path: '/shoes/-', value: serverData.shoes[1]}
-                    );
-                    expect(conflict.conflicts).to.be.an('array').with.length(1).and.include(
+                    expect(conflict.resolved).to.be.an('array').with.length(1);
+                    expect(conflict.resolved[0].server).to.eql({op: 'add', path: '/shoes/-', value: serverData.shoes[1]});
+                    expect(conflict.conflicts).to.be.an('array').with.length(1);
+                    expect(conflict.conflicts).to.include(
                         {
                             client: clientDiff[0],
                             server: _.findWhere(serverDiff, {op: 'replace'}),
@@ -339,16 +346,28 @@ module.exports = function (BaseModel, config) {
             it('applying collisionless changes and emitting sync:conflict-autoResolved when no conflicts remain', function (done) {
                 var serverDiff = instance._getDiff(originalData, serverData);
                 expect(serverDiff).to.be.an('array').with.length(1);
-                instance.on('sync:conflict-autoResolved', function (model, resolved) {
-                    expect(resolved).to.be.an('array').with.length(1).and.include(
-                        {op: 'add', path: '/shoes/-', value: serverData.shoes[1]}
-                    );
+                instance.on('sync:conflict-autoResolved', function (model, conflict) {
+                    expect(conflict).to.be.an('object').and.have.keys('serverState', 'resolved', 'unsaved');
+                    expect(conflict.resolved).to.be.an('array').with.length(1);
+                    expect(conflict.resolved[0].server).to.eql({op: 'add', path: '/shoes/-', value: serverData.shoes[1]});
                     expect(instance.shoes.toJSON()).to.eql(serverData.shoes);
                     done();
                 });
                 instance._conflictDetector('foo-bar-baz', serverData);
             });
 
+            it('auto-resolves conflicts in favor of server when config.autoResolve === "server"', function (done) {
+                instance._optimisticUpdate.autoResolve = 'server';
+                serverData.car.model = 'De Ville';
+                instance.car.set('model', 'Fleetwood');
+                instance.shoes.add({color: 'Chocolate', style: 'Loafer'});
+                instance.on('sync:conflict-autoResolved', function (model, conflict) {
+                    expect(conflict).to.be.an('object');
+                    expect(conflict.conflicts).to.not.exist;
+                    done();
+                });
+                instance._conflictDetector('foo-bar-baz', serverData);
+            });
         });
     });
     return lab;

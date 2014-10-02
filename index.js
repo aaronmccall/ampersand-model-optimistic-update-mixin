@@ -79,6 +79,7 @@ var mixin = module.exports = function (_super, protoProps) {
             }
         },
         _conflictDetector: function (version, serverData) {
+            if (this._version !== version) this._version = version;
             var config = this._optimisticUpdate;
             log('Preparing conflict data%s', config.autoResolve ? ' and resolving non-conflicting changes.' : '.');
             serverData = this.parse(serverData);
@@ -87,64 +88,97 @@ var mixin = module.exports = function (_super, protoProps) {
             var employeeCache = {};
             var removeClient = [];
             var removeServer = [];
-            if (this._version !== version) this._version = version;
-
+            var unsaved = this._getLocalOps();
             _.each(changed, function (op, idx) {
                 log('%d: op:', idx, op);
-                var collision = _.findWhere(this._getLocalOps(), {op: op.op, path: op.path});
+                var collision = _.findWhere(unsaved, {op: op.op, path: op.path});
                 if (collision) {
                     log('found a collision between %o and %o', op, collision);
-                    // Remove from possible auto-resolvable changes, regardless
-                    removeServer.push(op);
 
                     var bothRemoved = (op.op === 'remove' && collision.op === 'remove');
                     var sameChange = (op.op === 'replace' && op.value === collision.value);
+                    var bothAppend = (op.op === 'add' && ((op.path.lastIndexOf('-')+1 ) === op.path.length));
                     // If client and server both removed something or changed it to the same value,
                     // drop both operations --> no conflict
                     if (bothRemoved || sameChange) {
+                        removeServer.push(op);
                         return removeClient.push(collision);
+                    }
+                    if (bothAppend && config.autoResolve) {
+                        return;
                     }
                 } else {
                     log('no conflict');
                     if (config.autoResolve) return;
+                }
+                // When config.autoResolve is set to 'server', we'll apply the server's version locally.
+                if (config.autoResolve === 'server') {
+                    removeClient.push(collision);
+                    op.clientDiscarded = true;
+                    return;
+                } else {
+                    removeServer.push(op);
                 }
 
                 // If we've made it this far, there is a valid conflict
                 var payload = {
                     client: collision,
                     server: op,
-                    original: op.op === 'add' ? null : JSONPointer.get(this._getOriginal(), op.path)
+                    original: op.op === 'add' ? null : this._getByPath(op.path)
                 };
                 log('adding conflict:', payload);
                 return conflicts.push(payload);
             }, this);
             
-            if (removeClient.length && this._ops) {
+            if (removeClient.length) {
                 log('cleaning up _ops');
-                this._ops = _.difference(this._ops, removeClient);
+                unsaved = _.difference(unsaved, removeClient);
+                if (this._ops) this._ops = unsaved;
             }
+            unsaved = _.map(unsaved, function (op) {
+                var original = (op.op !== 'add') ? this._getByPath(op.path) : null;
+                return _.extend({original: original}, op);
+            }, this);
             if (removeServer.length) {
                 log('cleaning up server changes');
                 changed = _.difference(changed, removeServer);
             }
             if (config.autoResolve && changed.length) {
-                log('auto-resolving');
+                log('auto-resolving: %o', changed);
                 this._applyDiff(changed);
                 if (!conflicts.length) {
-                    this.trigger('sync:conflict-autoResolved', this, changed);
+                    this._conflict = {
+                        resolved: this._prepResolved(changed),
+                        serverState: serverData,
+                        unsaved: unsaved
+                    };
+                    log('emitting sync:conflict-autoResolved event: %o', this._conflict);
+                    this.trigger('sync:conflict-autoResolved', this, this._conflict);
                     this[this._patcherConfig.originalProperty] = serverData;
                 }
             }
             if (conflicts.length) {
+                log('had conflicts');
                 // Deal with them
                 this._conflict = {
                     conflicts: conflicts,
                     serverState: serverData,
-                    resolved: this._optimisticUpdate.autoResolve ? changed : []
+                    resolved: config.autoResolve ? this._prepResolved(changed) : [],
+                    unsaved: unsaved
                 };
                 log('emitting sync:conflict event: %o', this._conflict);
                 return this.trigger('sync:conflict', this, this._conflict);
             }
+        },
+        _prepResolved: function (changed) {
+            log('prepping resolved ops');
+            return _.map(changed, function (operation) {
+                return {
+                    server: operation,
+                    original: this._getByPath(operation.path),
+                    clientDiscarded: operation.clientDiscarded
+                };
+            }, this);
         },
         _applyDiff: function (diff) {
             log('applying diff:', diff);
@@ -193,7 +227,6 @@ var mixin = module.exports = function (_super, protoProps) {
                 }
                 if (child && op.op === 'remove') {
                     log('removing %o', child);
-                    child.destroy();
                     delete this[root];
                 }
             }, this);
@@ -213,7 +246,7 @@ var mixin = module.exports = function (_super, protoProps) {
     });
 
     if (config.JSONPatch === false) {
-        patchProto = _.pick(patchProto, 'parse', '_patcherConfig', 'toJSON');
+        patchProto = _.omit(patchProto, '_queueOp', '_queueModelAdd', '_changeCollectionModel', 'initPatcher');
     }
 
     var syncProto = syncMixin(_super, _.defaults({
