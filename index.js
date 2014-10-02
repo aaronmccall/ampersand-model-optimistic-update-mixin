@@ -116,6 +116,7 @@ var mixin = module.exports = function (_super, protoProps) {
                 if (config.autoResolve === 'server') {
                     removeClient.push(collision);
                     op.clientDiscarded = true;
+                    op.client = collision.value;
                     return;
                 } else {
                     removeServer.push(op);
@@ -247,7 +248,7 @@ var mixin = module.exports = function (_super, protoProps) {
     });
 
     if (config.JSONPatch === false) {
-        patchProto = _.omit(patchProto, '_queueOp', '_queueModelAdd', '_changeCollectionModel', 'initPatcher');
+        patchProto = _.omit(patchProto, '_queueOp', '_queueModelAdd', '_changeCollectionModel', 'initPatcher', 'save');
     }
 
     var syncProto = syncMixin(_super, _.defaults({
