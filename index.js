@@ -33,10 +33,50 @@ var mixin = module.exports = function (_super, protoProps) {
             return JSONDiff(lhs, rhs);
         },
         _getOriginal: function () {
-            return this[this._patcherConfig.originalProperty];
+            return _.omit(this[this._patcherConfig.originalProperty], config.ignoreProps);
         },
-        _getLocalOps: function () {
-            return this._ops || this._getDiff(this._getOriginal(), this.toJSON());
+        _sortCollections: function (current) {
+            if (config.collectionSort) {
+                log('sorting current collections');
+                _.each(this[this._patcherConfig.collectionProperty], function (x, name) {
+                    var sorter = config.collectionSort[name] || config.collectionSort.default;
+                    var currentList = current[name];
+                    log('sorter: %s, currentList: %o', sorter, currentList);
+                    if (sorter && currentList) {
+                        current[name] = _.sortBy(currentList, sorter);
+                    }
+                });
+            }
+        },
+        _getLocalOps: function (original, current) {
+            if (this._ops) return this._ops;
+            original = original || this._getOriginal();
+            current = current || this.toJSON();
+            this._sortCollections(current);
+            var omit = [];
+            var ops = [];
+            if (config.customCompare) {
+                _.each(config.customCompare, function (isEqual, name) {
+                    var result = isEqual.call(this, original[name], current[name]);
+                    if (!result) return;
+                    if (_.isArray(result)) {
+                        ops = ops.concat(result);
+                    }
+                    omit.push(name);
+                });
+            }
+            original = _.omit(original, omit);
+            current = _.omit(current, omit);
+            return ops.concat(this._getDiff(original, current));
+        },
+        _getByPath: function (path, obj) {
+            if (path.charAt(path.length - 1) === '-' && !obj) return null;
+            obj = obj || this._getOriginal();
+            try {
+                return JSONPointer.get(obj, path);
+            } catch (e) {
+                log('JSONPointer failed:', e, path, obj);
+            }
         },
         _conflictDetector: function (version, serverData) {
             var config = this._optimisticUpdate;

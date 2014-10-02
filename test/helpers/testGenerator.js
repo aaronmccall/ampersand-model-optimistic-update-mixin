@@ -212,7 +212,78 @@ module.exports = function (BaseModel, config) {
             done();
         });
 
+        describe('local ops generator', function () {
+            var instance, serverData, originalData, clientData, sort, sortBy;
+            beforeEach(function (done) {
+                originalData = testData();
+                instance = new (getModel({
+                    collectionSort: {
+                        shoes: 'id'
+                    },
+                    autoResolve: true,
+                    JSONPatch: false
+                }))(originalData);
+                serverData = testData();
+                serverData.shoes.push({
+                    id: 5,
+                    style: 'Vans',
+                    color: 'Brown'
+                });
+                clientData = testData();
+                clientData.car.model = 'Fleetwood';
+                clientData.shoes.push({
+                    id: 4,
+                    style: 'Wellingtons',
+                    color: 'Black'
+                });
+                sort = sinon.spy(instance, '_sortCollections');
+                sortBy = sinon.spy(_, 'sortBy');
+                done();
+            });
+            afterEach(function (done) {
+                sortBy.restore();
+                sort.restore();
+                done();
+            });
 
+            it('sorts child collections when generating local ops', function (done) {
+                var clientOps = instance._getLocalOps(originalData, clientData);
+                expect(sort.called).to.equal(true);
+                expect(sortBy.called).to.equal(true);
+                expect(clientOps).to.be.an('array').with.length(2);
+                instance._optimisticUpdate.collectionSort = {
+                    default: null
+                };
+                var serverOps = instance._getLocalOps(originalData, serverData);
+                expect(serverOps).to.be.an('array').with.length(1);
+                sortBy.restore();
+                sort.restore();
+                done();
+            });
+
+            it('uses custom compare functions as configured', function (done) {
+                instance._optimisticUpdate.customCompare = {
+                    shoes: function (lhs, rhs) {
+                        return false;
+                    }
+                };
+                var compare = sinon.spy(instance._optimisticUpdate.customCompare, 'shoes');
+                instance._getLocalOps(originalData, clientData);
+                expect(compare.called).to.equal(true);
+                expect(compare.returned(false)).to.equal(true);
+                instance._optimisticUpdate.customCompare.shoes = function () { return true; };
+                compare = sinon.spy(instance._optimisticUpdate.customCompare, 'shoes');
+                instance._getLocalOps(originalData, clientData);
+                expect(compare.called).to.equal(true);
+                expect(compare.returned(true)).to.equal(true);
+                instance._optimisticUpdate.customCompare.shoes = function (rhs, lhs) { return [{op: 'remove', path: '/shoes/2'}]; };
+                compare = sinon.spy(instance._optimisticUpdate.customCompare, 'shoes');
+                instance._getLocalOps(originalData, clientData);
+                expect(compare.called).to.equal(true);
+                expect(compare.returned([{op: 'remove', path: '/shoes/2'}])).to.equal(true);
+                done();
+            });
+        });
 
         describe('auto-resolves if autoResolve directive is true', function () {
             var instance, serverData, originalData, clientData, oldLog;
