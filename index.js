@@ -207,8 +207,11 @@ var mixin = module.exports = function (_super, protoProps) {
                         child = this[root].at(index);
                     }
                     if (child && op.op === 'remove') {
-                        log('removing %o from %s', child, root);
-                        return this[root].remove(child);
+                        if (!pathParts.length) {
+                            log('removing %o from %s', child, root);
+                            return this[root].remove(child);
+                        }
+                        return child.unset(pathParts.shift());
                     }
                 } else if (this._isModel(root)) {
                     child = this[root];
