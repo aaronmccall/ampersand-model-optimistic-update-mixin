@@ -246,6 +246,35 @@ var mixin = module.exports = function (_super, protoProps) {
         _isModel: function (name) {
             var models = this[this._patcherConfig.modelProperty];
             return models && name in models;
+        },
+        // payload is the second argument to sync:conflict and 
+        // sync:conflict-autoResolved handlers
+        reverseUnsaved: function (payload) {
+            payload = payload || this._conflict;
+            var client = this._sortCollections(this.toJSON());
+            var forward = this._getLocalOps(payload.original, payload.serverState);
+            var reverse = this._getLocalOps(client, payload.original);
+            var undo = [];
+            _.each(reverse, function (op) {
+                if (_.findWhere(forward, {op: op.op, path: op.path})) return;
+                var clientVersion = this._getByPath(op.path, client);
+                if (op.op === 'remove' && clientVersion) {
+                    if (!clientVersion.id) {
+                        var nodes = op.path.slice(1).split('/');
+                        var collection = this[nodes[0]];
+                        var model = collection.findWhere(clientVersion);
+                        var index = collection.indexOf(model);
+                        op.path = op.path.replace(nodes[1], index);
+                        return undo.push(op);
+                    } else {
+                        return;
+                    }
+                    var serverVersion = this._getByPath(op.path, payload.serverState);
+                    if (serverVersion) return;
+                }
+                undo.push(op);
+            }, this);
+            this._applyDiff(undo);
         }
     });
 
