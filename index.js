@@ -84,7 +84,8 @@ var mixin = module.exports = function (_super, protoProps) {
             var config = this._optimisticUpdate;
             log('Preparing conflict data%s', config.autoResolve ? ' and resolving non-conflicting changes.' : '.');
             serverData = this.parse(serverData);
-            var changed = this._getDiff(this._getOriginal(), serverData);
+            var original = this._getOriginal();
+            var changed = this._getDiff(original, serverData);
             var conflicts = [];
             var employeeCache = {};
             var removeClient = [];
@@ -152,6 +153,7 @@ var mixin = module.exports = function (_super, protoProps) {
                     this._conflict = {
                         resolved: this._prepResolved(changed),
                         serverState: serverData,
+                        original: original,
                         unsaved: unsaved
                     };
                     log('emitting sync:conflict-autoResolved event: %o', this._conflict);
@@ -176,9 +178,10 @@ var mixin = module.exports = function (_super, protoProps) {
             log('prepping resolved ops');
             return _.map(changed, function (operation) {
                 return {
-                    server: operation,
+                    server: _.omit(operation, 'clientDiscarded', 'client'),
                     original: this._getByPath(operation.path),
-                    clientDiscarded: operation.clientDiscarded
+                    clientDiscarded: operation.clientDiscarded,
+                    client: operation.client
                 };
             }, this);
         },
