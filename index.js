@@ -1,6 +1,5 @@
 var _ = require('underscore');
 var kisslog = require('kisslog');
-var JSONDiff = require('rfc6902-simple-diff');
 var JSONPointer = require('jsonpointer');
 var syncMixin = require('ampersand-optimistic-sync');
 var patcherMixin = require('ampersand-model-patch-mixin');
