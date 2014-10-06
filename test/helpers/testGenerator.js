@@ -100,7 +100,7 @@ module.exports = function (BaseModel, config) {
                 expect(conflict).to.be.an('object');
                 done();
             });
-            serverData.shoes[0].style = 'Buff Suede';
+            serverData.shoes[0].style = 'Patent';
             instance._conflictDetector('foo-bar-baz', serverData);
         });
 
@@ -169,9 +169,11 @@ module.exports = function (BaseModel, config) {
 
         it('deep applies diffs to child collections', function (done) {
             instance.shoes.add({style: 'Spats', color: 'Black on White'});
+            var sortedShoes = instance._sortCollections(instance.shoes.toJSON());
             instance._applyDiff([
                 {op: 'replace', path: '/shoes/0/color', value: 'Buff'},
-                {op: 'remove', path: '/shoes/1'}
+                {op: 'remove', path: '/shoes/0/style', context: {index: 0, source: sortedShoes}},
+                {op: 'remove', path: '/shoes/1', context: {index: 1, source: sortedShoes}}
             ]);
             expect(instance.shoes.at(0).get('color')).to.equal('Buff');
             expect(instance.shoes.at(1)).to.not.exist;
@@ -263,8 +265,6 @@ module.exports = function (BaseModel, config) {
                 };
                 var serverOps = instance._getLocalOps(originalData, serverData);
                 expect(serverOps).to.be.an('array').with.length(1);
-                sortBy.restore();
-                sort.restore();
                 done();
             });
 
@@ -299,7 +299,7 @@ module.exports = function (BaseModel, config) {
                 console.log = sinon.spy();
                 originalData = testData();
                 instance = new (getModel({
-                    debug: true,
+                    debug: 1,
                     autoResolve: true,
                     JSONPatch: false,
                     optimistic: {debug: true}
@@ -320,7 +320,7 @@ module.exports = function (BaseModel, config) {
             });
             
             it('applying collisionless changes and emitting sync:conflict when conflicts remain', function (done) {
-                delete serverData.shoes[0].style;
+                serverData.shoes[0].style = 'Patent';
                 serverData.car.model = 'De Ville';
                 instance.car.set('model', 'Fleetwood');
                 var serverDiff = instance._getDiff(originalData, serverData);
@@ -329,17 +329,26 @@ module.exports = function (BaseModel, config) {
                 expect(clientDiff).to.be.an('array').with.length(1);
                 instance.on('sync:conflict', function (model, conflict) {
                     expect(conflict.resolved).to.be.an('array').with.length(2);
-                    expect(conflict.resolved[1].server).to.eql({op: 'add', path: '/shoes/-', value: serverData.shoes[1]});
+                    expect(conflict.resolved[1].server).to.eql({
+                        op: 'add',
+                        path: '/shoes/' + originalData.shoes.length,
+                        value: serverData.shoes[1],
+                        context: {
+                            index: originalData.shoes.length,
+                            source: originalData.shoes
+                        }
+                    });
                     expect(conflict.conflicts).to.be.an('array').with.length(1);
-                    expect(conflict.conflicts).to.include(
+                    expect(conflict.conflicts[0]).to.eql(
                         {
                             client: clientDiff[0],
-                            server: _.findWhere(serverDiff, {path: '/car/model', op: 'replace'}),
-                            original: originalData.car.model
-                        },
-                        {
-                            server: _.findWhere(serverDiff, {path: '/shoes/0/style'}),
-                            original: originalData.shoes[0].style
+                            server: _.extend({ test: {
+                                op: 'test',
+                                path: '/car/model',
+                                value: originalData.car.model
+                            }}, _.findWhere(serverDiff, {path: '/car/model', op: 'replace'})),
+                            original: originalData.car.model,
+                            
                         }
                     );
                     done();
@@ -353,7 +362,15 @@ module.exports = function (BaseModel, config) {
                 instance.on('sync:conflict-autoResolved', function (model, conflict) {
                     expect(conflict).to.be.an('object');
                     expect(conflict.resolved).to.be.an('array').with.length(1);
-                    expect(conflict.resolved[0].server).to.eql({op: 'add', path: '/shoes/-', value: serverData.shoes[1]});
+                    expect(conflict.resolved[0].server).to.eql({
+                        op: 'add',
+                        path: '/shoes/' + originalData.shoes.length,
+                        value: serverData.shoes[1],
+                        context: {
+                            index: originalData.shoes.length,
+                            source: originalData.shoes
+                        }
+                    });
                     expect(instance.shoes.toJSON()).to.eql(serverData.shoes);
                     done();
                 });
@@ -368,6 +385,27 @@ module.exports = function (BaseModel, config) {
                 instance.on('sync:conflict-autoResolved', function (model, conflict) {
                     expect(conflict).to.be.an('object');
                     expect(conflict.conflicts).to.not.exist;
+                    done();
+                });
+                instance._conflictDetector('foo-bar-baz', serverData);
+            });
+
+            it('and can reverse unsaved client-side changes', function (done) {
+                instance._optimisticUpdate.autoResolve = 'server';
+                instance._optimisticUpdate.collectionSort = { shoes: 'id' };
+                serverData.car.model = 'De Ville';
+                instance.car.set('model', 'Fleetwood');
+                instance.shoes.remove(instance.shoes.at(0));
+                instance.shoes.add({color: 'Chocolate', style: 'Loafer'});
+                instance.shoes.add({color: 'Red', style: 'Jogger'});
+                instance.set('age', 49);
+                instance.on('sync:conflict-autoResolved', function (model, conflict) {
+                    instance.reverseUnsaved(conflict);
+                    expect(conflict).to.be.an('object');
+                    expect(conflict.conflicts).to.not.exist;
+                    var iData = instance._sortCollections(instance.toJSON());
+                    expect(iData.car).to.eql(serverData.car);
+                    expect(iData.shoes).to.eql(serverData.shoes);
                     done();
                 });
                 instance._conflictDetector('foo-bar-baz', serverData);
