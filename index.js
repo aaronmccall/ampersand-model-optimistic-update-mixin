@@ -322,9 +322,11 @@ var mixin = module.exports = function (_super, protoProps) {
         _patcherConfig: config.patcher || {}
     });
 
-    if (config.JSONPatch === false) {
-        patchProto = _.omit(patchProto, '_queueOp', '_queueModelAdd', '_changeCollectionModel', 'initPatcher', 'save');
-    }
+    var oldSave = baseProto.save || _super.prototype.save;
+    myProto.save = function (key, val, options) {
+        if (this._optimisticUpdate.JSONPatch === false) return oldSave.call(this, key, val, options);
+        patchProto.save.call(this, key, val, options);
+    };
 
     var syncProto = syncMixin(_super, _.defaults({
         invalidHandler: myProto._invalidHandler
