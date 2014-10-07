@@ -49,6 +49,7 @@ var mixin = module.exports = function (_super, protoProps) {
                 if (op.op !== 'test') return payload.push(op);
                 nextOp = ops[idx+1];
                 if (op.path === nextOp.path) {
+                    debug('adding test %o to op %o', op, nextOp);
                     // Push related op to skip list
                     skipChange.push(idx+1);
                     nextOp.test = op;
@@ -307,8 +308,11 @@ var mixin = module.exports = function (_super, protoProps) {
         // sync:conflict-autoResolved handlers
         reverseUnsaved: function (payload) {
             payload = payload || this._conflict;
-            var reverse = this._getLocalOps(this._sortCollections(this.toJSON()), payload.serverState);
-            log('reverse: %j', _.map(reverse, function (op) {
+            if (this._ops) this._resetOps();
+            var local = this._sortCollections(this.toJSON());
+            debug('reversing from\n%o\n\nto %o', local, payload.serverState);
+            var reverse = this._getLocalOps(local, payload.serverState);
+            debug('reverse: %j', _.map(reverse, function (op) {
                 return _.pick(op, 'op', 'path', 'value');
             }));
             return this._applyDiff(reverse);
