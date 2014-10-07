@@ -77,7 +77,7 @@ module.exports = function (BaseModel, config) {
             expect(instance._ops).to.be.an('array');
             sinon.spy(instance, '_getDiff');
             instance._conflictDetector('foo-bar-baz', serverData);
-            expect(instance._getDiff.callCount).to.equal(1);
+            expect(instance._getDiff.called).to.equal(true);
             expect(instance._getDiff.firstCall.args).to.eql([originalData, serverData]);
             console.log = oldLog;
             done();
@@ -104,7 +104,8 @@ module.exports = function (BaseModel, config) {
             instance._conflictDetector('foo-bar-baz', serverData);
         });
 
-        it('discards colliding removes', function (done) {
+        it('discarding colliding removes', function (done) {
+            instance._optimisticUpdate.debug = 1;
             delete serverData.car;
             instance.car.destroy();
             expect(instance._ops).to.be.an('array').with.length(1);
@@ -113,7 +114,7 @@ module.exports = function (BaseModel, config) {
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
                 expect(conflict).to.be.an('object');
-                expect(conflict.conflicts).to.be.an('array').with.length(1);
+                expect(conflict.conflicts).to.be.an('array').with.length(1, JSON.stringify(conflict.conflicts, null, 2));
                 expect(_.findWhere(conflict.conflicts, {op: 'remove'})).to.not.exist;
                 done();
             });
@@ -299,7 +300,7 @@ module.exports = function (BaseModel, config) {
                 console.log = sinon.spy();
                 originalData = testData();
                 instance = new (getModel({
-                    debug: 1,
+                    debug: 4,
                     autoResolve: true,
                     JSONPatch: false,
                     optimistic: {debug: true}
@@ -324,7 +325,7 @@ module.exports = function (BaseModel, config) {
                 serverData.car.model = 'De Ville';
                 instance.car.set('model', 'Fleetwood');
                 var serverDiff = instance._getDiff(originalData, serverData);
-                var clientDiff = instance._getDiff(originalData, instance.toJSON());
+                var clientDiff = instance._getLocalOps();
                 expect(serverDiff).to.be.an('array').with.length(3);
                 expect(clientDiff).to.be.an('array').with.length(1);
                 instance.on('sync:conflict', function (model, conflict) {

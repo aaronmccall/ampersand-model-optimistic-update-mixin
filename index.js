@@ -57,9 +57,6 @@ var mixin = module.exports = function (_super, protoProps) {
             });
             return payload;
         },
-        _getOriginal: function () {
-            return _.omit(this[this._patcherConfig.originalProperty], config.ignoreProps);
-        },
         _sortCollections: function (current) {
             if (config.collectionSort) {
                 debug('sorting current collections');
@@ -75,7 +72,7 @@ var mixin = module.exports = function (_super, protoProps) {
             return current;
         },
         _getLocalOps: function (original, current) {
-            if (this._ops) return this._ops;
+            if (this._ops && this._ops.length) return this._getOps();
             original = original || this._getOriginal();
             current = current || this.toJSON();
             this._sortCollections(current);
@@ -187,7 +184,7 @@ var mixin = module.exports = function (_super, protoProps) {
                     };
                     log(kisslog.info, 'emitting sync:conflict-autoResolved event: %o', this._conflict);
                     this.trigger('sync:conflict-autoResolved', this, this._conflict);
-                    this[this._patcherConfig.originalProperty] = serverData;
+                    this._setOriginal(serverData);
                 }
             }
             if (conflicts.length) {
@@ -321,6 +318,10 @@ var mixin = module.exports = function (_super, protoProps) {
     var patchProto =  patcherMixin(_super, {
         _patcherConfig: config.patcher || {}
     });
+
+    myProto._getOriginal = function () {
+        return _.omit(patchProto._getOriginal.call(this), config.ignoreProps);
+    };
 
     var oldSave = baseProto.save || _super.prototype.save;
     myProto.save = function (key, val, options) {
