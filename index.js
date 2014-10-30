@@ -6,14 +6,22 @@ var patcherMixin = require('ampersand-model-patch-mixin');
 var jiff = require('jiff');
 
 var internals = {};
-
+var preApply = ['save', 'parse', 'sync', 'toJSON'];
 var mixin = module.exports = function (_super, protoProps) {
     var baseProto = protoProps || {};
     var config = baseProto._optimisticUpdate || {};
-
-    protoProps = _.omit(baseProto, '_optimisticUpdate');
     
     var log = kisslog(config);
+    log('baseProto: %o', baseProto);
+    
+    protoProps = _.omit(baseProto, '_optimisticUpdate');
+
+    if (_.intersection(_.keys(baseProto), preApply).length) {
+        var toPreApply = _.pick(baseProto, preApply);
+        log('preApplying methods: %o', toPreApply);
+        _super = _super.extend(toPreApply);
+        baseProto = _.omit(baseProto, preApply);
+    }
     var debug = _.partial(log, kisslog.debug);
 
     var myProto = _.extend({
@@ -327,7 +335,7 @@ var mixin = module.exports = function (_super, protoProps) {
         return _.omit(patchProto._getOriginal.call(this), config.ignoreProps);
     };
 
-    var oldSave = baseProto.save || _super.prototype.save;
+    var oldSave = _super.prototype.save;
     myProto.save = function (key, val, options) {
         if (this._optimisticUpdate.JSONPatch === false) return oldSave.call(this, key, val, options);
         patchProto.save.call(this, key, val, options);

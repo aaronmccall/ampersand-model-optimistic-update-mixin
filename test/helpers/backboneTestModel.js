@@ -8,6 +8,7 @@ sync.yieldsToAsync('success');
 
 var TestModel = Model.extend({
     initialize: function (attrs) {
+        attrs = attrs || {};
         this._initChildren(attrs);
         this._initCollections(attrs);
         if (this.initPatcher) {

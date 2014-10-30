@@ -14,9 +14,7 @@ module.exports = function (BaseModel, config) {
     function getModel(_config) {
         var myConfig;
         if (_config && !_.isEmpty(_config)) {
-            myConfig = {
-                _optimisticUpdate: _config
-            };
+            myConfig = _config;
         }
         return mixin(BaseModel, myConfig);
     }
@@ -26,7 +24,7 @@ module.exports = function (BaseModel, config) {
     var afterEach = lab.afterEach;
     var beforeEach = lab.beforeEach;
     describe(name + ': detects conflicts', function () {
-        var MyModel = getModel(config);
+        var MyModel = getModel({_optimisticUpdate: config});
         var instance;
         var clientData, originalData, serverData;
         beforeEach(function (done) {
@@ -72,7 +70,7 @@ module.exports = function (BaseModel, config) {
         it('generates a diff between original and server', function (done) {
             var oldLog = console.log;
             console.log = sinon.spy();
-            instance = new (getModel({patcher: {debug: true}}))(originalData);
+            instance = new (getModel({_optimisticUpdate: { patcher: {debug: true} }}))(originalData);
             instance._applyDiff(instance._getDiff(originalData, clientData));
             expect(instance._ops).to.be.an('array');
             sinon.spy(instance, '_getDiff');
@@ -227,11 +225,13 @@ module.exports = function (BaseModel, config) {
             beforeEach(function (done) {
                 originalData = testData();
                 instance = new (getModel({
-                    collectionSort: {
-                        shoes: 'id'
-                    },
-                    autoResolve: true,
-                    JSONPatch: false
+                    _optimisticUpdate: {
+                        collectionSort: {
+                            shoes: 'id'
+                        },
+                        autoResolve: true,
+                        JSONPatch: false
+                    }
                 }))(originalData);
                 serverData = testData();
                 serverData.shoes.push({
@@ -299,12 +299,12 @@ module.exports = function (BaseModel, config) {
                 oldLog = console.log;
                 console.log = sinon.spy();
                 originalData = testData();
-                instance = new (getModel({
-                    debug: 4,
-                    autoResolve: true,
-                    JSONPatch: false,
-                    optimistic: {debug: true}
-                }))(originalData);
+                instance = new (getModel({_optimisticUpdate: {
+                                    debug: 4,
+                                    autoResolve: true,
+                                    JSONPatch: false,
+                                    optimistic: {debug: true}
+                                }}))(originalData);
                 serverData = testData();
                 serverData.shoes.push({
                     id: 5,
@@ -410,6 +410,22 @@ module.exports = function (BaseModel, config) {
                     done();
                 });
                 instance._conflictDetector('foo-bar-baz', serverData);
+            });
+        });
+    });
+    describe(name + ': pre-applies methods before extending', function () {
+        var methods = _.object(['parse', 'save', 'sync', 'toJSON'], _.range(4).map(function () { return sinon.stub().returns({}); }));
+        var Model;
+        beforeEach(function (done) {
+            Model = getModel(methods);
+            done();
+        });
+        _.each(methods, function (method, name) {
+            it(name + ' is pre-applied', function (done) {
+                var instance = new Model();
+                instance[name]({}, name === 'sync' ? instance : {});
+                expect(method.called).to.equal(true);
+                done();
             });
         });
     });
