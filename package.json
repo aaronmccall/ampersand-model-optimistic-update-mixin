@@ -30,7 +30,7 @@
   "homepage": "https://github.com/aaronmccall/ampersand-model-optimistic-update-mixin",
   "dependencies": {
     "ampersand-model-patch-mixin": "^2.0.0",
-    "ampersand-optimistic-sync": "^1.2.0",
+    "ampersand-optimistic-sync": "^3.0.0",
     "jiff": "^0.6.0",
     "jsonpointer": "^1.1.0",
     "kisslog": "^2.0.0",
