@@ -1,4 +1,20 @@
-var _ = require('underscore');
+var defaults = require('lodash.defaults');
+var difference = require('lodash.difference');
+var each = require('lodash.foreach');
+var extend = require('lodash.assign');
+var findWhere = require('lodash.findwhere');
+var intersection = require('lodash.intersection');
+var indexOf = require('lodash.indexof');
+var isArray = require('lodash.isarray');
+var isObject = require('lodash.isobject');
+var keys = require('lodash.keys');
+var map = require('lodash.map');
+var omit = require('lodash.omit');
+var partial = require('lodash.partial');
+var pick = require('lodash.pick');
+var sortBy = require('lodash.sortby');
+var toArray = require('lodash.toarray');
+
 var kisslog = require('kisslog');
 var JSONPointer = require('jsonpointer');
 var syncMixin = require('ampersand-optimistic-sync');
@@ -14,21 +30,21 @@ var mixin = module.exports = function (_super, protoProps) {
     var log = kisslog(config);
     log('baseProto: %o', baseProto);
     
-    protoProps = _.omit(baseProto, '_optimisticUpdate');
+    protoProps = omit(baseProto, '_optimisticUpdate');
 
-    if (_.intersection(_.keys(baseProto), preApply).length) {
-        var toPreApply = _.pick(baseProto, preApply);
+    if (intersection(keys(baseProto), preApply).length) {
+        var toPreApply = pick(baseProto, preApply);
         log('preApplying methods: %o', toPreApply);
         _super = _super.extend(toPreApply);
-        baseProto = _.omit(baseProto, preApply);
+        baseProto = omit(baseProto, preApply);
     }
-    var debug = _.partial(log, kisslog.debug);
+    var debug = partial(log, kisslog.debug);
 
-    var myProto = _.extend({
+    var myProto = extend({
         _optimisticUpdate: config,
         _invalidHandler: function (model, version, serverData) {
             debug('invalidHandler called:', version, serverData);
-            if (_.isObject(serverData)) {
+            if (isObject(serverData)) {
                 return model._conflictDetector(version, serverData);
             }
             var xhr = model.sync('read', model, {
@@ -50,7 +66,7 @@ var mixin = module.exports = function (_super, protoProps) {
                     return {index: index, source: array};
                 }
             });
-            _.each(ops, function (op, idx) {
+            each(ops, function (op, idx) {
                 // If we've already processed this op, skip it.
                 if (skipChange.indexOf(idx) !== -1) return;
                 var test, nextOp;
@@ -69,12 +85,12 @@ var mixin = module.exports = function (_super, protoProps) {
         _sortCollections: function (current) {
             if (config.collectionSort) {
                 debug('sorting current collections');
-                _.each(this[this._patcherConfig.collectionProperty], function (x, name) {
+                each(this[this._patcherConfig.collectionProperty], function (x, name) {
                     var sorter = config.collectionSort[name] || config.collectionSort.default;
                     var currentList = current[name];
                     debug('sorter: %s, currentList: %o', sorter, currentList);
                     if (sorter && currentList) {
-                        current[name] = _.sortBy(currentList, sorter);
+                        current[name] = sortBy(currentList, sorter);
                     }
                 });
             }
@@ -85,20 +101,20 @@ var mixin = module.exports = function (_super, protoProps) {
             original = original || this._getOriginal();
             current = current || this.toJSON();
             this._sortCollections(current);
-            var omit = [];
+            var omitProps = [];
             var ops = [];
             if (config.customCompare) {
-                _.each(config.customCompare, function (isEqual, name) {
+                each(config.customCompare, function (isEqual, name) {
                     var result = isEqual.call(this, original[name], current[name]);
                     if (!result) return;
-                    if (_.isArray(result)) {
+                    if (isArray(result)) {
                         ops = ops.concat(result);
                     }
-                    omit.push(name);
+                    omitProps.push(name);
                 });
             }
-            original = _.omit(original, omit);
-            current = _.omit(current, omit);
+            original = omit(original, omitProps);
+            current = omit(current, omitProps);
             return ops.concat(this._getDiff(original, current));
         },
         _getByPath: function (path, obj) {
@@ -124,10 +140,10 @@ var mixin = module.exports = function (_super, protoProps) {
             var removeClient = [];
             var removeServer = [];
             var unsaved = this._getLocalOps(original, client);
-            _.each(changed, function (op, idx) {
+            each(changed, function (op, idx) {
                 debug('%d: op:', idx, op);
                 
-                var collision = _.findWhere(unsaved, {op: op.op, path: op.path});
+                var collision = findWhere(unsaved, {op: op.op, path: op.path});
                 if (collision) {
                     log('found a collision between %j and %j', op, collision);
 
@@ -170,16 +186,16 @@ var mixin = module.exports = function (_super, protoProps) {
             
             if (removeClient.length) {
                 debug('cleaning up _ops');
-                unsaved = _.difference(unsaved, removeClient);
+                unsaved = difference(unsaved, removeClient);
                 if (this._ops) this._ops = unsaved;
             }
-            unsaved = _.map(unsaved, function (op) {
+            unsaved = map(unsaved, function (op) {
                 var original = (op.op !== 'add') ? this._getByPath(op.path) : null;
-                return _.extend({original: original}, op);
+                return extend({original: original}, op);
             }, this);
             if (removeServer.length) {
                 debug('cleaning up server changes: %o', removeServer);
-                changed = _.difference(changed, removeServer);
+                changed = difference(changed, removeServer);
             }
             if (config.autoResolve && changed.length) {
                 debug('auto-resolving: %o', changed);
@@ -211,9 +227,9 @@ var mixin = module.exports = function (_super, protoProps) {
         },
         _prepResolved: function (changed) {
             debug('prepping resolved ops');
-            return _.map(changed, function (operation) {
+            return map(changed, function (operation) {
                 return {
-                    server: _.omit(operation, 'clientDiscarded', 'client'),
+                    server: omit(operation, 'clientDiscarded', 'client'),
                     original: this._getByPath(operation.path),
                     clientDiscarded: operation.clientDiscarded,
                     client: operation.client
@@ -225,8 +241,8 @@ var mixin = module.exports = function (_super, protoProps) {
             var config = this._optimisticUpdate;
             var models = this[config.modelProperty];
             var collections = this[config.collectionProperty];
-            _.each(diff, function (op) {
-                if (_.indexOf(['add', 'remove', 'replace'], op.op) === -1) {
+            each(diff, function (op) {
+                if (indexOf(['add', 'remove', 'replace'], op.op) === -1) {
                     return log(kisslog.warn, 'INVALID: Unsupported operation: %s', op.op);
                 }
                 var pathParts = op.path.slice(1).split('/');
@@ -267,7 +283,7 @@ var mixin = module.exports = function (_super, protoProps) {
                         debug('setting %o property %s to %s', child, pathParts[0], op.value);
                         child.set(pathParts.shift(), op.value);
                     // We're replacing all the attributes of the child
-                    } else if (_.isObject(op.value)) {
+                    } else if (isObject(op.value)) {
                         debug('setting %o attributes to %o', child, op.value);
                         child.set(op.value);
                     }
@@ -320,8 +336,8 @@ var mixin = module.exports = function (_super, protoProps) {
             var local = this._sortCollections(this.toJSON());
             debug('reversing from\n%o\n\nto %o', local, payload.serverState);
             var reverse = this._getLocalOps(local, payload.serverState);
-            debug('reverse: %j', _.map(reverse, function (op) {
-                return _.pick(op, 'op', 'path', 'value');
+            debug('reverse: %j', map(reverse, function (op) {
+                return pick(op, 'op', 'path', 'value');
             }));
             return this._applyDiff(reverse);
         }
@@ -332,7 +348,7 @@ var mixin = module.exports = function (_super, protoProps) {
     });
 
     myProto._getOriginal = function () {
-        return _.omit(patchProto._getOriginal.call(this), config.ignoreProps);
+        return omit(patchProto._getOriginal.call(this), config.ignoreProps);
     };
 
     var oldSave = _super.prototype.save;
@@ -341,9 +357,9 @@ var mixin = module.exports = function (_super, protoProps) {
         patchProto.save.call(this, key, val, options);
     };
 
-    var syncProto = syncMixin(_super, _.defaults({
+    var syncProto = syncMixin(_super, defaults({
         invalidHandler: myProto._invalidHandler
     }, config.optimistic || {}));
 
-    return _super.extend(_.extend(baseProto, syncProto, patchProto, myProto));
+    return _super.extend(extend(baseProto, syncProto, patchProto, myProto));
 };

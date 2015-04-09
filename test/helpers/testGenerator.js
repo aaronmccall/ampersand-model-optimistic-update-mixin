@@ -1,5 +1,12 @@
 /* jshint expr:true */
-var _ = require('underscore');
+var each = require('lodash.foreach');
+var extend = require('lodash.assign');
+var findWhere = require('lodash.findwhere');
+var isEmpty = require('lodash.isempty');
+var map = require('lodash.map');
+var object = require('lodash.zipobject');
+var omit = require('lodash.omit');
+var range = require('lodash.range');
 var Lab = require('lab');
 var sinon = require('sinon');
 var mixin = require('../../');
@@ -13,7 +20,7 @@ module.exports = function (BaseModel, config) {
     delete config.name;
     function getModel(_config) {
         var myConfig;
-        if (_config && !_.isEmpty(_config)) {
+        if (_config && !isEmpty(_config)) {
             myConfig = _config;
         }
         return mixin(BaseModel, myConfig);
@@ -107,13 +114,13 @@ module.exports = function (BaseModel, config) {
             delete serverData.car;
             instance.car.destroy();
             expect(instance._ops).to.be.an('array').with.length(1);
-            expect(_.omit(instance._ops[0], 'cid')).to.eql({op: 'remove', path: '/car'});
+            expect(omit(instance._ops[0], 'cid')).to.eql({op: 'remove', path: '/car'});
             expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
                 expect(conflict).to.be.an('object');
                 expect(conflict.conflicts).to.be.an('array').with.length(1, JSON.stringify(conflict.conflicts, null, 2));
-                expect(_.findWhere(conflict.conflicts, {op: 'remove'})).to.not.exist;
+                expect(findWhere(conflict.conflicts, {op: 'remove'})).to.not.exist;
                 done();
             });
             instance._conflictDetector('foo-bar-baz', serverData);
@@ -129,7 +136,7 @@ module.exports = function (BaseModel, config) {
             serverData.car.model = 'Fleetwood';
             instance.car.set('model', 'Fleetwood');
             expect(instance._ops).to.be.an('array').with.length(1);
-            expect(_.omit(instance._ops[0], 'cid')).to.eql({op: 'replace', path: '/car/model', value: 'Fleetwood'});
+            expect(omit(instance._ops[0], 'cid')).to.eql({op: 'replace', path: '/car/model', value: 'Fleetwood'});
             expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
@@ -247,11 +254,9 @@ module.exports = function (BaseModel, config) {
                     color: 'Black'
                 });
                 sort = sinon.spy(instance, '_sortCollections');
-                sortBy = sinon.spy(_, 'sortBy');
                 done();
             });
             afterEach(function (done) {
-                sortBy.restore();
                 sort.restore();
                 done();
             });
@@ -259,7 +264,6 @@ module.exports = function (BaseModel, config) {
             it('sorts child collections when generating local ops', function (done) {
                 var clientOps = instance._getLocalOps(originalData, clientData);
                 expect(sort.called).to.equal(true);
-                expect(sortBy.called).to.equal(true);
                 expect(clientOps).to.be.an('array').with.length(2);
                 instance._optimisticUpdate.collectionSort = {
                     default: null
@@ -343,11 +347,11 @@ module.exports = function (BaseModel, config) {
                     expect(conflict.conflicts[0]).to.eql(
                         {
                             client: clientDiff[0],
-                            server: _.extend({ test: {
+                            server: extend({ test: {
                                 op: 'test',
                                 path: '/car/model',
                                 value: originalData.car.model
-                            }}, _.findWhere(serverDiff, {path: '/car/model', op: 'replace'})),
+                            }}, findWhere(serverDiff, {path: '/car/model', op: 'replace'})),
                             original: originalData.car.model,
                             
                         }
@@ -414,13 +418,13 @@ module.exports = function (BaseModel, config) {
         });
     });
     describe(name + ': pre-applies methods before extending', function () {
-        var methods = _.object(['parse', 'save', 'sync', 'toJSON'], _.range(4).map(function () { return sinon.stub().returns({}); }));
+        var methods = object(['parse', 'save', 'sync', 'toJSON'], map(range(4), function () { return sinon.stub().returns({}); }));
         var Model;
         beforeEach(function (done) {
             Model = getModel(methods);
             done();
         });
-        _.each(methods, function (method, name) {
+        each(methods, function (method, name) {
             it(name + ' is pre-applied', function (done) {
                 var instance = new Model();
                 instance[name]({}, name === 'sync' ? instance : {});
