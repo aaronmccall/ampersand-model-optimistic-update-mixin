@@ -1,6 +1,6 @@
 {
   "name": "ampersand-model-optimistic-update-mixin",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "A mixin combining smart defaults for efficient data updating (json+patch) and optimistic concurrency.",
   "main": "index.js",
   "scripts": {
