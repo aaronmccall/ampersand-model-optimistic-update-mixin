@@ -120,11 +120,7 @@ var mixin = module.exports = function (_super, protoProps) {
         _getByPath: function (path, obj) {
             if (path.charAt(path.length - 1) === '-' && !obj) return null;
             obj = obj || this._getOriginal();
-            try {
-                return JSONPointer.get(obj, path);
-            } catch (e) {
-                log(kisslog.warn, 'JSONPointer failed:', e, path, obj);
-            }
+            return JSONPointer.get(obj, path);
         },
         _conflictDetector: function (version, serverData) {
             if (this._version !== version) this._version = version;
