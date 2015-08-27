@@ -7,11 +7,12 @@ var map = require('lodash.map');
 var object = require('lodash.zipobject');
 var omit = require('lodash.omit');
 var range = require('lodash.range');
+var Code = require('code');
 var Lab = require('lab');
 var sinon = require('sinon');
 var mixin = require('../../');
 var testData = require('./testData');
-var expect = Lab.expect;
+var expect = Code.expect;
 var JSONPointer = require('JSONPointer');
 
 module.exports = function (BaseModel, config) {
@@ -79,30 +80,30 @@ module.exports = function (BaseModel, config) {
             console.log = sinon.spy();
             instance = new (getModel({_optimisticUpdate: { patcher: {debug: true} }}))(originalData);
             instance._applyDiff(instance._getDiff(originalData, clientData));
-            expect(instance._ops).to.be.an('array');
+            expect(instance._ops).to.be.an.array();
             sinon.spy(instance, '_getDiff');
             instance._conflictDetector('foo-bar-baz', serverData);
             expect(instance._getDiff.called).to.equal(true);
-            expect(instance._getDiff.firstCall.args).to.eql([originalData, serverData]);
+            expect(instance._getDiff.firstCall.args).to.deep.equal([originalData, serverData]);
             console.log = oldLog;
             done();
         });
 
         it('generates a diff between original and client if _ops not present', function (done) {
             instance._applyDiff(instance._getDiff(originalData, clientData));
-            expect(instance._ops).to.be.an('array');
+            expect(instance._ops).to.be.an.array();
             instance._ops = null;
             sinon.spy(instance, '_getDiff');
             instance._conflictDetector('foo-bar-baz', serverData);
             expect(instance._getDiff.callCount).to.equal(2);
-            expect(instance._getDiff.secondCall.args).to.eql([originalData, clientData]);
+            expect(instance._getDiff.secondCall.args).to.deep.equal([originalData, clientData]);
             done();
         });
 
         it('emits a sync:conflict event if there are any unresolved changes', function (done) {
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object');
+                expect(conflict).to.be.an.object();
                 done();
             });
             serverData.shoes[0].style = 'Patent';
@@ -113,13 +114,17 @@ module.exports = function (BaseModel, config) {
             instance._optimisticUpdate.debug = 1;
             delete serverData.car;
             instance.car.destroy();
-            expect(instance._ops).to.be.an('array').with.length(1);
-            expect(omit(instance._ops[0], 'cid')).to.eql({op: 'remove', path: '/car'});
-            expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
+            expect(instance._ops).to.be.an.array();
+            expect(instance._ops.length).to.equal(1);
+            expect(omit(instance._ops[0], 'cid')).to.deep.equal({op: 'remove', path: '/car'});
+            var diff = instance._getDiff(originalData, serverData);
+            expect(diff).to.be.an.array();
+            expect(diff.length).to.equal(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object');
-                expect(conflict.conflicts).to.be.an('array').with.length(1, JSON.stringify(conflict.conflicts, null, 2));
+                expect(conflict).to.be.an.object();
+                expect(conflict.conflicts).to.be.an.array();
+                expect(conflict.conflicts.length).to.equal(1);
                 expect(findWhere(conflict.conflicts, {op: 'remove'})).to.not.exist;
                 done();
             });
@@ -128,20 +133,23 @@ module.exports = function (BaseModel, config) {
 
         it('catches JSONPointer errors', function (done) {
             expect(function () { instance._getByPath('/foo', instance._getOriginal()); }).to.not.throw();
-            expect(function () { JSONPointer.get(instance._getOriginal(), '/foo'); }).to.throw(/not found/);
             done();
         });
 
         it('discards changes to same value', function (done) {
             serverData.car.model = 'Fleetwood';
             instance.car.set('model', 'Fleetwood');
-            expect(instance._ops).to.be.an('array').with.length(1);
-            expect(omit(instance._ops[0], 'cid')).to.eql({op: 'replace', path: '/car/model', value: 'Fleetwood'});
-            expect(instance._getDiff(originalData, serverData)).to.be.an('array').with.length(2);
+            expect(instance._ops).to.be.an.array();
+            expect(instance._ops.length).to.equal(1);
+            expect(omit(instance._ops[0], 'cid')).to.deep.equal({op: 'replace', path: '/car/model', value: 'Fleetwood'});
+            var diff = instance._getDiff(originalData, serverData);
+            expect(diff).to.be.an.array();
+            expect(diff.length).to.equal(2);
             instance.on('sync:conflict', function (model, conflict) {
                 expect(model).to.equal(instance);
-                expect(conflict).to.be.an('object');
-                expect(conflict.conflicts).to.be.an('array').with.length(1);
+                expect(conflict).to.be.an.object();
+                expect(conflict.conflicts).to.be.an.array();
+                expect(conflict.conflicts.length).to.equal(1);
                 expect(conflict.conflicts[0].server.op).to.not.equal('replace');
                 done();
             });
@@ -160,7 +168,7 @@ module.exports = function (BaseModel, config) {
                 {op: 'remove', path: '/age'}
             ]);
             expect(cb.callCount).to.equal(3);
-            expect(ages).to.eql([47, 48, undefined]);
+            expect(ages).to.deep.equal([47, 48, undefined]);
             done();
         });
 
@@ -264,12 +272,14 @@ module.exports = function (BaseModel, config) {
             it('sorts child collections when generating local ops', function (done) {
                 var clientOps = instance._getLocalOps(originalData, clientData);
                 expect(sort.called).to.equal(true);
-                expect(clientOps).to.be.an('array').with.length(2);
+                expect(clientOps).to.be.an.array();
+                expect(clientOps.length).to.equal(2);
                 instance._optimisticUpdate.collectionSort = {
                     default: null
                 };
                 var serverOps = instance._getLocalOps(originalData, serverData);
-                expect(serverOps).to.be.an('array').with.length(1);
+                expect(serverOps).to.be.an.array();
+                expect(serverOps.length).to.equal(1);
                 done();
             });
 
@@ -330,11 +340,14 @@ module.exports = function (BaseModel, config) {
                 instance.car.set('model', 'Fleetwood');
                 var serverDiff = instance._getDiff(originalData, serverData);
                 var clientDiff = instance._getLocalOps();
-                expect(serverDiff).to.be.an('array').with.length(3);
-                expect(clientDiff).to.be.an('array').with.length(1);
+                expect(serverDiff).to.be.an.array();
+                expect(serverDiff.length).to.equal(3);
+                expect(clientDiff).to.be.an.array();
+                expect(clientDiff.length).to.equal(1);
                 instance.on('sync:conflict', function (model, conflict) {
-                    expect(conflict.resolved).to.be.an('array').with.length(2);
-                    expect(conflict.resolved[1].server).to.eql({
+                    expect(conflict.resolved).to.be.an.array();
+                    expect(conflict.resolved.length).to.equal(2);
+                    expect(conflict.resolved[1].server).to.deep.equal({
                         op: 'add',
                         path: '/shoes/' + originalData.shoes.length,
                         value: serverData.shoes[1],
@@ -343,8 +356,9 @@ module.exports = function (BaseModel, config) {
                             source: originalData.shoes
                         }
                     });
-                    expect(conflict.conflicts).to.be.an('array').with.length(1);
-                    expect(conflict.conflicts[0]).to.eql(
+                    expect(conflict.conflicts).to.be.an.array();
+                    expect(conflict.conflicts.length).to.equal(1);
+                    expect(conflict.conflicts[0]).to.deep.equal(
                         {
                             client: clientDiff[0],
                             server: extend({ test: {
@@ -363,11 +377,13 @@ module.exports = function (BaseModel, config) {
 
             it('applying collisionless changes and emitting sync:conflict-autoResolved when no conflicts remain', function (done) {
                 var serverDiff = instance._getDiff(originalData, serverData);
-                expect(serverDiff).to.be.an('array').with.length(1);
+                expect(serverDiff).to.be.an.array();
+                expect(serverDiff.length).to.equal(1);
                 instance.on('sync:conflict-autoResolved', function (model, conflict) {
-                    expect(conflict).to.be.an('object');
-                    expect(conflict.resolved).to.be.an('array').with.length(1);
-                    expect(conflict.resolved[0].server).to.eql({
+                    expect(conflict).to.be.an.object();
+                    expect(conflict.resolved).to.be.an.array();
+                    expect(conflict.resolved.length).to.equal(1);
+                    expect(conflict.resolved[0].server).to.deep.equal({
                         op: 'add',
                         path: '/shoes/' + originalData.shoes.length,
                         value: serverData.shoes[1],
@@ -376,7 +392,7 @@ module.exports = function (BaseModel, config) {
                             source: originalData.shoes
                         }
                     });
-                    expect(instance.shoes.toJSON()).to.eql(serverData.shoes);
+                    expect(instance.shoes.toJSON()).to.deep.equal(serverData.shoes);
                     done();
                 });
                 instance._conflictDetector('foo-bar-baz', serverData);
@@ -388,7 +404,7 @@ module.exports = function (BaseModel, config) {
                 instance.car.set('model', 'Fleetwood');
                 instance.shoes.add({color: 'Chocolate', style: 'Loafer'});
                 instance.on('sync:conflict-autoResolved', function (model, conflict) {
-                    expect(conflict).to.be.an('object');
+                    expect(conflict).to.be.an.object();
                     expect(conflict.conflicts).to.not.exist;
                     done();
                 });
@@ -406,11 +422,11 @@ module.exports = function (BaseModel, config) {
                 instance.set('age', 49);
                 instance.on('sync:conflict-autoResolved', function (model, conflict) {
                     instance.reverseUnsaved(conflict);
-                    expect(conflict).to.be.an('object');
+                    expect(conflict).to.be.an.object();
                     expect(conflict.conflicts).to.not.exist;
                     var iData = instance._sortCollections(instance.toJSON());
-                    expect(iData.car).to.eql(serverData.car);
-                    expect(iData.shoes).to.eql(serverData.shoes);
+                    expect(iData.car).to.deep.equal(serverData.car);
+                    expect(iData.shoes).to.deep.equal(serverData.shoes);
                     done();
                 });
                 instance._conflictDetector('foo-bar-baz', serverData);
