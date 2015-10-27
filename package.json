@@ -31,7 +31,7 @@
   "dependencies": {
     "ampersand-collection-lodash-mixin": "^2.0.1",
     "ampersand-model": "^6.0.1",
-    "ampersand-model-patch-mixin": "^3.3.1",
+    "ampersand-model-patch-mixin": "^3.4.0",
     "ampersand-optimistic-sync": "^3.1.1",
     "backbone": "^1.2.2",
     "jiff": "^0.7.2",
